@@ -17,7 +17,7 @@ Some ray datastructures.
 """
 import random
 from dataclasses import dataclass
-from typing import Callable, Dict, Optional
+from typing import Callable, Dict, Optional, Literal
 
 import torch
 from torchtyping import TensorType
@@ -114,11 +114,15 @@ class RaySamples(TensorDataclass):
     times: Optional[TensorType[..., 1]] = None
     """Times at which rays are sampled"""
 
-    def get_weights(self, densities: TensorType[..., "num_samples", 1]) -> TensorType[..., "num_samples", 1]:
+    def get_weights(self,
+                    densities: TensorType[..., "num_samples", 1],
+                    compute_transmittance: Literal["naive", "type1", "type2"] = "naive") -> TensorType[
+        ..., "num_samples", 1]:
         """Return weights based on predicted densities
 
         Args:
             densities: Predicted densities for samples along ray
+            compute_transmittance: the way of computing transmittance
 
         Returns:
             Weights for each sample
@@ -126,12 +130,26 @@ class RaySamples(TensorDataclass):
 
         delta_density = self.deltas * densities
         alphas = 1 - torch.exp(-delta_density)
-
-        transmittance = torch.cumsum(delta_density[..., :-1, :], dim=-2)
-        transmittance = torch.cat(
-            [torch.zeros((*transmittance.shape[:1], 1, 1), device=densities.device), transmittance], dim=-2
-        )
-        transmittance = torch.exp(-transmittance)  # [..., "num_samples"]
+        if compute_transmittance == "naive":
+            transmittance = torch.cumsum(delta_density[..., :-1, :], dim=-2)
+            transmittance = torch.cat(
+                [torch.zeros((*transmittance.shape[:1], 1, 1), device=densities.device), transmittance], dim=-2
+            )
+            transmittance = torch.exp(-transmittance)  # [..., "num_samples"]
+        elif compute_transmittance == "type1":
+            density_exp_neg_delta = densities * torch.exp(- self.deltas)
+            transmittance = torch.cumsum(density_exp_neg_delta[..., :-1, :], dim=-2)
+            transmittance = torch.cat(
+                [torch.zeros((*transmittance.shape[:1], 1, 1), device=densities.device), transmittance], dim=-2
+            )
+        elif compute_transmittance == "type2":
+            delta_exp_neg_density = self.deltas * torch.exp(-densities)
+            transmittance = torch.cumsum(delta_exp_neg_density[..., :-1, :], dim=-2)
+            transmittance = torch.cat(
+                [torch.zeros((*transmittance.shape[:1], 1, 1), device=densities.device), transmittance], dim=-2
+            )
+        else:
+            raise RuntimeError(compute_transmittance)
 
         weights = alphas * transmittance  # [..., "num_samples"]
         weights = torch.nan_to_num(weights)
