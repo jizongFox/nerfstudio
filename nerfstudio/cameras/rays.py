@@ -137,17 +137,33 @@ class RaySamples(TensorDataclass):
             )
             transmittance = torch.exp(-transmittance)  # [..., "num_samples"]
         elif compute_transmittance == "type1":
-            density_exp_neg_delta = densities * torch.exp(- self.deltas)
-            transmittance = torch.cumsum(density_exp_neg_delta[..., :-1, :], dim=-2)
+            accu_delta = torch.cumsum(self.deltas[..., :-1, :], dim=-2)
+            accu_delta = torch.cat(
+                [torch.zeros((*accu_delta.shape[:1], 1, 1), device=densities.device), accu_delta], dim=-2
+            )
+            transmittance = self.deltas * torch.exp(-densities)
+            transmittance = torch.cumsum(transmittance[..., :-1, :], dim=-2)
             transmittance = torch.cat(
                 [torch.zeros((*transmittance.shape[:1], 1, 1), device=densities.device), transmittance], dim=-2
             )
+            transmittance = transmittance / accu_delta
+            transmittance = torch.nan_to_num(transmittance)
+            transmittance = torch.pow(transmittance, accu_delta)
+            # transmittance = torch.min(transmittance / (transmittance.sum(dim=-2, keepdim=True) + 1e-3), transmittance)
+
         elif compute_transmittance == "type2":
-            delta_exp_neg_density = self.deltas * torch.exp(-densities)
-            transmittance = torch.cumsum(delta_exp_neg_density[..., :-1, :], dim=-2)
+            accu_density = torch.cumsum(densities[..., :-1, :], dim=-2)
+            accu_density = torch.cat(
+                [torch.zeros((*densities.shape[:1], 1, 1), device=densities.device), accu_density], dim=-2
+            )
+            transmittance = densities * torch.exp(-self.deltas)
+            transmittance = torch.cumsum(transmittance[..., :-1, :], dim=-2)
             transmittance = torch.cat(
                 [torch.zeros((*transmittance.shape[:1], 1, 1), device=densities.device), transmittance], dim=-2
             )
+            transmittance = transmittance / accu_density
+            transmittance = torch.nan_to_num(transmittance)
+            transmittance = torch.pow(transmittance, accu_density)
         else:
             raise RuntimeError(compute_transmittance)
 

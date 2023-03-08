@@ -17,7 +17,7 @@ Collection of sampling strategies
 """
 
 from abc import abstractmethod
-from typing import Callable, List, Optional, Tuple
+from typing import Callable, List, Optional, Tuple, Literal
 
 import nerfacc
 import torch
@@ -561,6 +561,7 @@ class ProposalNetworkSampler(Sampler):
         self,
         ray_bundle: Optional[RayBundle] = None,
         density_fns: Optional[List[Callable]] = None,
+        compute_transmittance: Literal["naive", "type1", "type2"] = "naive"
     ) -> Tuple[RaySamples, List, List]:
         assert ray_bundle is not None
         assert density_fns is not None
@@ -591,7 +592,7 @@ class ProposalNetworkSampler(Sampler):
                 else:
                     with torch.no_grad():
                         density = density_fns[i_level](ray_samples.frustums.get_positions())
-                weights = ray_samples.get_weights(density)
+                weights = ray_samples.get_weights(density, compute_transmittance=compute_transmittance)
                 weights_list.append(weights)  # (num_rays, num_samples)
                 ray_samples_list.append(ray_samples)
         if updated:

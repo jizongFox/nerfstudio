@@ -235,9 +235,13 @@ class NerfactoModel(Model):
 
     @profiler.time_ctx_with_focus("nerfacto")
     def get_outputs(self, ray_bundle: RayBundle):
-        ray_samples, weights_list, ray_samples_list = self.proposal_sampler(ray_bundle, density_fns=self.density_fns)
+        ray_samples, weights_list, ray_samples_list = self.proposal_sampler(
+            ray_bundle, density_fns=self.density_fns,
+            compute_transmittance=self.config.compute_transmittance
+        )
         field_outputs = self.field(ray_samples, compute_normals=self.config.predict_normals)
-        weights = ray_samples.get_weights(field_outputs[FieldHeadNames.DENSITY])
+        weights = ray_samples.get_weights(field_outputs[FieldHeadNames.DENSITY],
+                                          compute_transmittance=self.config.compute_transmittance)
         weights_list.append(weights)
         ray_samples_list.append(ray_samples)
 
