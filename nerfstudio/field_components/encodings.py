@@ -158,6 +158,10 @@ class NeRFEncoding(Encoding):
             encoded_inputs = torch.cat([encoded_inputs, in_tensor], dim=-1)
         return encoded_inputs
 
+    def __repr__(self):
+        return f"{self.__class__.__name__}(in_dim: {self.in_dim}, num_frequencies: {self.num_frequencies}, " \
+               f"min_freq: {self.min_freq}, max_freq: {self.max_freq}, include_input: {self.include_input})"
+
 
 class RFFEncoding(Encoding):
     """Random Fourier Feature encoding. Supports integrated encodings.

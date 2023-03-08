@@ -10,6 +10,7 @@ import struct
 import sys
 from contextlib import ExitStack
 from dataclasses import dataclass, field
+from multiprocessing import set_start_method
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
@@ -17,6 +18,7 @@ import mediapy as media
 import numpy as np
 import torch
 import tyro
+from loguru import logger
 from rich.console import Console
 from rich.progress import (
     BarColumn,
@@ -39,17 +41,29 @@ from nerfstudio.utils.rich_utils import ItersPerSecColumn
 
 CONSOLE = Console(width=120)
 
+DEBUG = False
+logger.remove()
+if DEBUG:
+    logger_format = "<green>{time:MM/DD HH:mm:ss.SS}</green> | <level>{level: ^7}</level> |" \
+                    "{process.name:<5}.{thread.name:<5}: " \
+                    "<cyan>{name:<8}</cyan>:<cyan>{function:<10}</cyan>:<cyan>{line:<4}</cyan>" \
+                    " - <level>{message}</level>"
+    logger.add(sys.stderr, format=logger_format, backtrace=False, diagnose=True, colorize=True,
+               filter=lambda r: r["extra"].get("enabled", True))
+
 
 def _render_trajectory_video(
-    pipeline: Pipeline,
-    cameras: Cameras,
-    output_filename: Path,
-    rendered_output_names: List[str],
-    crop_data: Optional[CropData] = None,
-    rendered_resolution_scaling_factor: float = 1.0,
-    seconds: float = 5.0,
-    output_format: Literal["images", "video"] = "video",
-    camera_type: CameraType = CameraType.PERSPECTIVE,
+        pipeline: Pipeline,
+        cameras: Cameras,
+        output_filename: Path,
+        rendered_output_names: List[str],
+        crop_data: Optional[CropData] = None,
+        rendered_resolution_scaling_factor: float = 1.0,
+        seconds: float = 5.0,
+        output_format: Literal["images", "video"] = "video",
+        camera_type: CameraType = CameraType.PERSPECTIVE,
+        *,
+        config_path: Path,
 ) -> None:
     """Helper function to create a video of the spiral trajectory.
 
@@ -64,10 +78,13 @@ def _render_trajectory_video(
         output_format: How to save output data.
         camera_type: Camera projection format type.
     """
+    device = pipeline.device
     CONSOLE.print("[bold green]Creating trajectory " + output_format)
     cameras.rescale_output_resolution(rendered_resolution_scaling_factor)
-    cameras = cameras.to(pipeline.device)
+    cameras = cameras.to(device)
     fps = len(cameras) / seconds
+    cur_model = pipeline.model
+    # cur_model = AsyncPredictor(load_config=config_path, num_gpus=3)
 
     progress = Progress(
         TextColumn(":movie_camera: Rendering :movie_camera:"),
@@ -99,17 +116,17 @@ def _render_trajectory_video(
                 if crop_data is not None:
                     bounding_box_min = crop_data.center - crop_data.scale / 2.0
                     bounding_box_max = crop_data.center + crop_data.scale / 2.0
-                    aabb_box = SceneBox(torch.stack([bounding_box_min, bounding_box_max]).to(pipeline.device))
+                    aabb_box = SceneBox(torch.stack([bounding_box_min, bounding_box_max]).to(device))
                 camera_ray_bundle = cameras.generate_rays(camera_indices=camera_idx, aabb_box=aabb_box)
 
                 if crop_data is not None:
                     with renderers.background_color_override_context(
-                        crop_data.background_color.to(pipeline.device)
+                            crop_data.background_color.to(device)
                     ), torch.no_grad():
-                        outputs = pipeline.model.get_outputs_for_camera_ray_bundle(camera_ray_bundle)
+                        outputs = cur_model.get_outputs_for_camera_ray_bundle(camera_ray_bundle)
                 else:
                     with torch.no_grad():
-                        outputs = pipeline.model.get_outputs_for_camera_ray_bundle(camera_ray_bundle)
+                        outputs = cur_model.get_outputs_for_camera_ray_bundle(camera_ray_bundle)
 
                 render_image = []
                 for rendered_output_name in rendered_output_names:
@@ -275,7 +292,7 @@ class RenderTrajectory:
         _, pipeline, _ = eval_setup(
             self.load_config,
             eval_num_rays_per_chunk=self.eval_num_rays_per_chunk,
-            test_mode="test" if self.traj == "spiral" else "inference",
+            test_mode="test" if self.traj in ["spiral", "interpolate"] else "inference",
         )
 
         install_checks.check_ffmpeg_installed()
@@ -305,6 +322,7 @@ class RenderTrajectory:
             camera_path = get_path_from_json(camera_path)
         else:
             assert_never(self.traj)
+            raise RuntimeError(self.traj)
 
         _render_trajectory_video(
             pipeline,
@@ -316,6 +334,7 @@ class RenderTrajectory:
             seconds=seconds,
             output_format=self.output_format,
             camera_type=camera_type,
+            config_path=self.load_config
         )
 
 
@@ -326,6 +345,8 @@ def entrypoint():
 
 
 if __name__ == "__main__":
+    set_start_method("spawn", force=True)
+
     entrypoint()
 
 # For sphinx docs

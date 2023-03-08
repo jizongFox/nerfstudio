@@ -186,3 +186,6 @@ class NearFarCollider(SceneCollider):
         ray_bundle.nears = ones * near_plane
         ray_bundle.fars = ones * self.far_plane
         return ray_bundle
+
+    def __repr__(self):
+        return f"{self.__class__.__name__}(near_plane={self.near_plane}, far_plane={self.far_plane})"

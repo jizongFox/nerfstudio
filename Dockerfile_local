@@ -1,0 +1,26 @@
+FROM dromni/nerfstudio:0.1.18
+ENV "http_proxy"="http://172.17.0.1:3128" \
+    "https_proxy"="http://172.17.0.1:3128" \
+    "no_proxy"="localhost,.hwap,.huawei.com" \
+    "HTTP_PROXY"="http://172.17.0.1:3128" \
+    "HTTPS_PROXY"="http://172.17.0.1:3128" \
+    "NO_PROXY"="localhost,.hwap,.huawei.com" \
+    "GIT_SSL_NO_VERIFY"="true" \
+    "PYTHONBREAKPOINT"="ipdb.set_trace" \
+    "PYTHONWARNINGS"="ignore"
+
+RUN pip config set global.trusted-host \
+    "pypi.org files.pythonhosted.org pypi.python.org download.openmmlab.com  codeload.github.com download.pytorch.org" \
+    --trusted-host=pypi.python.org \
+    --trusted-host=pypi.org \
+    --trusted-host=files.pythonhosted.org \
+    --trusted-host=download.oppenmmlab.com \
+    --trusted-host=codeload.github.com
+
+
+USER root
+RUN apt update && apt install zsh -y
+USER 1000
+COPY ./ /workspace
+WORKDIR /workspace
+RUN pip install -e .

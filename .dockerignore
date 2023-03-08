@@ -2,7 +2,7 @@
 __pycache__/
 *.py[cod]
 *$py.class
-.idea
+
 # C extensions
 *.so
 
@@ -82,7 +82,7 @@ target/
 # IPython
 profile_default/
 ipython_config.py
-*.sh
+
 # pyenv
 #   For a library or package, you might want to ignore these files since the code is
 #   intended to run in multiple environments; otherwise, check them in:
@@ -170,7 +170,6 @@ events.out.*
 
 # Data
 data
-!*/data
 
 # Misc
 old/
@@ -190,5 +189,7 @@ camera_paths/
 */**/._.DS_Store
 
 
-Dockerfile.sh
-demo
+outputs
+exports
+data
+nerfstudio.egg-info

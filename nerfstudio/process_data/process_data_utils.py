@@ -18,6 +18,7 @@ import os
 import shutil
 import sys
 from enum import Enum
+from multiprocessing.dummy import Pool
 from pathlib import Path
 from typing import List, Optional, Tuple
 
@@ -99,7 +100,11 @@ def get_num_frames_in_video(video: Path) -> int:
 
 
 def convert_video_to_images(
-    video_path: Path, image_dir: Path, num_frames_target: int, verbose: bool = False
+    video_path: Path,
+    image_dir: Path,
+    num_frames_target: int,
+    percent_crop: Tuple[float, float, float, float] = (0.0, 0.0, 0.0, 0.0),
+    verbose: bool = False,
 ) -> Tuple[List[str], int]:
     """Converts a video into a sequence of images.
 
@@ -107,6 +112,7 @@ def convert_video_to_images(
         video_path: Path to the video.
         output_dir: Path to the output directory.
         num_frames_target: Number of frames to extract.
+        percent_crop: Percent of the image to crop. (top, bottom, left, right)
         verbose: If True, logs the output of the command.
     Returns:
         A tuple containing summary of the conversion and the number of extracted frames.
@@ -263,7 +269,13 @@ def copy_images(data: Path, image_dir: Path, verbose) -> int:
     return num_frames
 
 
-def downscale_images(image_dir: Path, num_downscales: int, folder_name: str = "images", verbose: bool = False) -> str:
+def downscale_images(
+    image_dir: Path,
+    num_downscales: int,
+    folder_name: str = "images",
+    nearest_neighbor: bool = False,
+    verbose: bool = False,
+) -> str:
     """Downscales the images in the directory. Uses FFMPEG.
 
     Assumes images are named frame_00001.png, frame_00002.png, etc.
@@ -272,6 +284,7 @@ def downscale_images(image_dir: Path, num_downscales: int, folder_name: str = "i
         image_dir: Path to the directory containing the images.
         num_downscales: Number of times to downscale the images. Downscales by 2 each time.
         folder_name: Name of the output folder
+        nearest_neighbor: Use nearest neighbor sampling (useful for depth images)
         verbose: If True, logs the output of the command.
 
     Returns:
@@ -290,15 +303,22 @@ def downscale_images(image_dir: Path, num_downscales: int, folder_name: str = "i
             downscale_dir.mkdir(parents=True, exist_ok=True)
             # Using %05d ffmpeg commands appears to be unreliable (skips images), so use scandir.
             files = os.scandir(image_dir)
-            for f in files:
+
+            def _worker(f):
+                if f.is_dir():
+                    return
                 filename = f.name
+                nn_flag = "" if not nearest_neighbor else ":flags=neighbor"
                 ffmpeg_cmd = [
                     f'ffmpeg -y -noautorotate -i "{image_dir / filename}" ',
-                    f"-q:v 2 -vf scale=iw/{downscale_factor}:ih/{downscale_factor} ",
+                    f"-q:v 2 -vf scale=iw/{downscale_factor}:ih/{downscale_factor}{nn_flag} ",
                     f'"{downscale_dir / filename}"',
                 ]
                 ffmpeg_cmd = " ".join(ffmpeg_cmd)
                 run_command(ffmpeg_cmd, verbose=verbose)
+
+            with Pool(os.cpu_count()) as pool:
+                pool.map(_worker, files)
 
     CONSOLE.log("[bold green]:tada: Done downscaling images.")
     downscale_text = [f"[bold blue]{2**(i+1)}x[/bold blue]" for i in range(num_downscales)]

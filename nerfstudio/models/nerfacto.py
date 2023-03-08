@@ -56,7 +56,7 @@ from nerfstudio.model_components.renderers import (
 from nerfstudio.model_components.scene_colliders import NearFarCollider
 from nerfstudio.model_components.shaders import NormalsShader
 from nerfstudio.models.base_model import Model, ModelConfig
-from nerfstudio.utils import colormaps
+from nerfstudio.utils import colormaps, profiler
 
 
 @dataclass
@@ -166,17 +166,12 @@ class NerfactoModel(Model):
             self.density_fns.extend([network.density_fn for network in self.proposal_networks])
 
         # Samplers
-        update_schedule = lambda step: np.clip(
-            np.interp(step, [0, self.config.proposal_warmup], [0, self.config.proposal_update_every]),
-            1,
-            self.config.proposal_update_every,
-        )
         self.proposal_sampler = ProposalNetworkSampler(
             num_nerf_samples_per_ray=self.config.num_nerf_samples_per_ray,
             num_proposal_samples_per_ray=self.config.num_proposal_samples_per_ray,
             num_proposal_network_iterations=self.config.num_proposal_iterations,
             single_jitter=self.config.use_single_jitter,
-            update_sched=update_schedule,
+            update_sched=self.update_schedule_fn,
         )
 
         # Collider
@@ -236,6 +231,7 @@ class NerfactoModel(Model):
             )
         return callbacks
 
+    @profiler.time_ctx_with_focus("nerfacto")
     def get_outputs(self, ray_bundle: RayBundle):
         ray_samples, weights_list, ray_samples_list = self.proposal_sampler(ray_bundle, density_fns=self.density_fns)
         field_outputs = self.field(ray_samples, compute_normals=self.config.predict_normals)
@@ -243,9 +239,10 @@ class NerfactoModel(Model):
         weights_list.append(weights)
         ray_samples_list.append(ray_samples)
 
-        rgb = self.renderer_rgb(rgb=field_outputs[FieldHeadNames.RGB], weights=weights)
-        depth = self.renderer_depth(weights=weights, ray_samples=ray_samples)
-        accumulation = self.renderer_accumulation(weights=weights)
+        with profiler.time_ctx_with_focus("nerfacto.get_outputs", self.renderer_rgb):
+            rgb = self.renderer_rgb(rgb=field_outputs[FieldHeadNames.RGB], weights=weights)
+            depth = self.renderer_depth(weights=weights, ray_samples=ray_samples)
+            accumulation = self.renderer_accumulation(weights=weights)
 
         outputs = {
             "rgb": rgb,
@@ -254,10 +251,11 @@ class NerfactoModel(Model):
         }
 
         if self.config.predict_normals:
-            normals = self.renderer_normals(normals=field_outputs[FieldHeadNames.NORMALS], weights=weights)
-            pred_normals = self.renderer_normals(field_outputs[FieldHeadNames.PRED_NORMALS], weights=weights)
-            outputs["normals"] = self.normals_shader(normals)
-            outputs["pred_normals"] = self.normals_shader(pred_normals)
+            with profiler.time_ctx_with_focus("nerfacto.get_outputs", self.renderer_normals):
+                normals = self.renderer_normals(normals=field_outputs[FieldHeadNames.NORMALS], weights=weights)
+                pred_normals = self.renderer_normals(field_outputs[FieldHeadNames.PRED_NORMALS], weights=weights)
+                outputs["normals"] = self.normals_shader(normals)
+                outputs["pred_normals"] = self.normals_shader(pred_normals)
         # These use a lot of GPU memory, so we avoid storing them for eval.
         if self.training:
             outputs["weights_list"] = weights_list
@@ -267,18 +265,24 @@ class NerfactoModel(Model):
             outputs["rendered_orientation_loss"] = orientation_loss(
                 weights.detach(), field_outputs[FieldHeadNames.NORMALS], ray_bundle.directions
             )
-
+            if not self.is_optimized:
+                _norm_grad = field_outputs[FieldHeadNames.NORMALS].norm(dim=-1)
+                _norm_pred = field_outputs[FieldHeadNames.PRED_NORMALS].norm(dim=-1)
+                assert torch.allclose(_norm_grad, torch.ones_like(_norm_grad))
+                assert torch.allclose(_norm_pred, torch.ones_like(_norm_grad))
             outputs["rendered_pred_normal_loss"] = pred_normal_loss(
                 weights.detach(),
                 field_outputs[FieldHeadNames.NORMALS].detach(),
                 field_outputs[FieldHeadNames.PRED_NORMALS],
             )
-
-        for i in range(self.config.num_proposal_iterations):
-            outputs[f"prop_depth_{i}"] = self.renderer_depth(weights=weights_list[i], ray_samples=ray_samples_list[i])
+        with profiler.time_ctx_with_focus("nerfacto.get_outputs", self.renderer_depth):
+            for i in range(self.config.num_proposal_iterations):
+                outputs[f"prop_depth_{i}"] = self.renderer_depth(weights=weights_list[i],
+                                                                 ray_samples=ray_samples_list[i])
 
         return outputs
 
+    @profiler.time_ctx_with_focus("nerfacto")
     def get_metrics_dict(self, outputs, batch):
         metrics_dict = {}
         image = batch["image"].to(self.device)
@@ -287,6 +291,7 @@ class NerfactoModel(Model):
             metrics_dict["distortion"] = distortion_loss(outputs["weights_list"], outputs["ray_samples_list"])
         return metrics_dict
 
+    @profiler.time_ctx_with_focus("nerfacto")
     def get_loss_dict(self, outputs, batch, metrics_dict=None):
         loss_dict = {}
         image = batch["image"].to(self.device)
@@ -309,6 +314,7 @@ class NerfactoModel(Model):
                 )
         return loss_dict
 
+    @profiler.time_ctx_with_focus("nerfacto")
     def get_image_metrics_and_images(
         self, outputs: Dict[str, torch.Tensor], batch: Dict[str, torch.Tensor]
     ) -> Tuple[Dict[str, float], Dict[str, torch.Tensor]]:
@@ -348,3 +354,10 @@ class NerfactoModel(Model):
             images_dict[key] = prop_depth_i
 
         return metrics_dict, images_dict
+
+    def update_schedule_fn(self, step):
+        return np.clip(
+            np.interp(step, [0, self.config.proposal_warmup], [0, self.config.proposal_update_every]),
+            1,
+            self.config.proposal_update_every,
+        )

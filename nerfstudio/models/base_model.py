@@ -18,9 +18,11 @@ Base Model implementation which takes in RayBundles
 
 from __future__ import annotations
 
+import os
 from abc import abstractmethod
 from collections import defaultdict
 from dataclasses import dataclass, field
+from functools import lru_cache
 from typing import Any, Dict, List, Optional, Tuple, Type
 
 import torch
@@ -218,3 +220,8 @@ class Model(nn.Module):
         Args:
             step: training step of the loaded checkpoint
         """
+
+    @property
+    @lru_cache()
+    def is_optimized(self) -> bool:
+        return str(os.environ.get("PYTHONOPTIMIZE", "0")) == "1"

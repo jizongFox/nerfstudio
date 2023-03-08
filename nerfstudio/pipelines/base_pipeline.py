@@ -243,7 +243,7 @@ class VanillaPipeline(Pipeline):
         """Returns the device that the model is on."""
         return self.model.device
 
-    @profiler.time_function
+    @profiler.time_ctx_with_focus("pipeline")
     def get_train_loss_dict(self, step: int):
         """This function gets your training loss dict. This will be responsible for
         getting the next batch of data from the DataManager and interfacing with the
@@ -252,21 +252,26 @@ class VanillaPipeline(Pipeline):
         Args:
             step: current iteration step to update sampler if using DDP (distributed)
         """
-        ray_bundle, batch = self.datamanager.next_train(step)
-        model_outputs = self.model(ray_bundle)
-        metrics_dict = self.model.get_metrics_dict(model_outputs, batch)
+        with profiler.time_ctx_with_focus("pipeline.get_train_loss_dict", self.datamanager.next_train):
+            ray_bundle, batch = self.datamanager.next_train(step)  # 22.3%
+        with profiler.time_ctx_with_focus("pipeline.get_train_loss_dict", self.model.forward):
+            model_outputs = self.model(ray_bundle)  # 67.4%
+        metrics_dict = self.model.get_metrics_dict(model_outputs, batch)  # 5%
 
-        camera_opt_param_group = self.config.datamanager.camera_optimizer.param_group
-        if camera_opt_param_group in self.datamanager.get_param_groups():
-            # Report the camera optimization metrics
-            metrics_dict["camera_opt_translation"] = (
-                self.datamanager.get_param_groups()[camera_opt_param_group][0].data[:, :3].norm()
-            )
-            metrics_dict["camera_opt_rotation"] = (
-                self.datamanager.get_param_groups()[camera_opt_param_group][0].data[:, 3:].norm()
-            )
+        if self.config.datamanager.camera_optimizer is not None:
+            with profiler.time_ctx_with_focus("pipeline.get_train_loss_dict", "mise"):
+                camera_opt_param_group = self.config.datamanager.camera_optimizer.param_group  # 0.3%
+                if camera_opt_param_group in self.datamanager.get_param_groups():
+                    # Report the camera optimization metrics
+                    metrics_dict["camera_opt_translation"] = (
+                        self.datamanager.get_param_groups()[camera_opt_param_group][0].data[:, :3].norm()
+                    )
+                    metrics_dict["camera_opt_rotation"] = (
+                        self.datamanager.get_param_groups()[camera_opt_param_group][0].data[:, 3:].norm()
+                    )
 
-        loss_dict = self.model.get_loss_dict(model_outputs, batch, metrics_dict)
+        with profiler.time_ctx_with_focus("pipeline.get_train_loss_dict", self.model.get_loss_dict):
+            loss_dict = self.model.get_loss_dict(model_outputs, batch, metrics_dict)  # 4%
 
         return model_outputs, loss_dict, metrics_dict
 

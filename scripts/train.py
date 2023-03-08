@@ -170,9 +170,10 @@ def launch(
         # world_size=1 uses one GPU in one process.
         try:
             main_func(local_rank=0, world_size=world_size, config=config)
-        except KeyboardInterrupt:
+        except KeyboardInterrupt as e:
             # print the stack trace
             CONSOLE.print(traceback.format_exc())
+            raise KeyboardInterrupt from e
         finally:
             profiler.flush_profiler(config.logging)
     elif world_size > 1:

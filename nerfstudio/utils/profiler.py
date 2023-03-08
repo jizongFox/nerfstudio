@@ -17,6 +17,7 @@ Profiler base class and functionality
 """
 from __future__ import annotations
 
+import functools
 import time
 from typing import Callable
 
@@ -33,6 +34,45 @@ from nerfstudio.utils.decorators import (
 CONSOLE = Console(width=120)
 
 PROFILER = []
+
+
+class time_ctx_with_focus:
+
+    def __init__(self, focus: str = "", func=None) -> None:
+        self.focus = focus
+        self.func = func
+
+    def _get_str(self, func):
+        if isinstance(func, str):
+            class_str = func
+        else:
+            class_str = func.__qualname__ if hasattr(func, '__qualname__') else func.__class__.__name__
+        return class_str
+
+    def __call__(self, func):
+
+        self.func = func
+
+        @functools.wraps(func)
+        def decorate_context(*args, **kwargs):
+            with self:
+                return func(*args, **kwargs)
+
+        return decorate_context
+
+    def __enter__(self):
+        assert self.func is not None
+        self.func_name = self._get_str(self.func)
+
+        if self.focus:
+            self.func_name = f"({self.focus}) " + self.func_name
+        self.start = time.time()
+        if PROFILER:
+            PROFILER[0].set_place_holder(self.func_name)
+
+    def __exit__(self, *args, **kwargs):
+        if PROFILER:
+            PROFILER[0].update_time(self.func_name, self.start, time.time())
 
 
 def time_function(func: Callable) -> Callable:
@@ -52,7 +92,7 @@ def time_function(func: Callable) -> Callable:
 def flush_profiler(config: cfg.LoggingConfig):
     """Method that checks if profiler is enabled before flushing"""
     if config.enable_profiler and PROFILER:
-        PROFILER[0].print_profile()
+        PROFILER[0].print_profile(sorted_value=False)
 
 
 def setup_profiler(config: cfg.LoggingConfig):
@@ -83,14 +123,21 @@ class Profiler:
         prev_step = func_dict["step"]
         self.profiler_dict[func_name] = {"val": (prev_val * prev_step + val) / (prev_step + 1), "step": prev_step + 1}
 
-    def print_profile(self):
+    def set_place_holder(self, func_name: str):
+        if func_name not in self.profiler_dict:
+            self.profiler_dict[func_name] = {"val": 0, "step": 0}
+
+    def print_profile(self, sorted_value=True):
         """helper to print out the profiler stats"""
         CONSOLE.print("Printing profiling stats, from longest to shortest duration in seconds")
-        sorted_keys = sorted(
-            self.profiler_dict.keys(),
-            key=lambda k: self.profiler_dict[k]["val"],
-            reverse=True,
-        )
+        if sorted_value:
+            sorted_keys = sorted(
+                self.profiler_dict.keys(),
+                key=lambda k: self.profiler_dict[k]["val"],
+                reverse=True,
+            )
+        else:
+            sorted_keys = list(self.profiler_dict.keys())
         for k in sorted_keys:
-            val = f"{self.profiler_dict[k]['val']:0.4f}"
-            CONSOLE.print(f"{k:<20}: {val:<20}")
+            val = f"{self.profiler_dict[k]['val'] * 1000:0.4f}"
+            CONSOLE.print(f"{k:<60}: {val} ms")
