@@ -103,6 +103,16 @@ def ray_samples_to_sdist(ray_samples):
     return sdist
 
 
+def total_variation_loss(density, type_: str = "l1"):
+    if type_ == "l1":
+        tv_h = torch.abs(density[..., 1:, :] - density[..., :-1, :]).sum(dim=-2)
+    elif type_ == "l2":
+        tv_h = torch.pow(density[..., 1:, :] - density[..., :-1, :], 2).sum(dim=-2)
+    else:
+        raise ValueError(type_)
+    return tv_h.mean()
+
+
 def interlevel_loss(weights_list, ray_samples_list):
     """Calculates the proposal loss in the MipNeRF-360 paper.
 

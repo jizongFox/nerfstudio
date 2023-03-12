@@ -44,7 +44,7 @@ from nerfstudio.model_components.losses import (
     distortion_loss,
     interlevel_loss,
     orientation_loss,
-    pred_normal_loss,
+    pred_normal_loss, total_variation_loss,
 )
 from nerfstudio.model_components.ray_samplers import ProposalNetworkSampler
 from nerfstudio.model_components.renderers import (
@@ -117,7 +117,10 @@ class NerfactoModelConfig(ModelConfig):
     """Whether to predict normals or not."""
     compute_transmittance: Literal["naive", "type1", "type2"] = "naive"
     """how to compute transmittance"""
-
+    total_variation_loss_mult: float = 1e-6
+    """weight for total variation loss on sparse density"""
+    tv_loss_type: Literal["l1", "l2"] = "l1"
+    """tv loss type"""
 
 class NerfactoModel(Model):
     """Nerfacto model
@@ -254,6 +257,7 @@ class NerfactoModel(Model):
             "rgb": rgb,
             "accumulation": accumulation,
             "depth": depth,
+            "field_outputs": field_outputs
         }
 
         if self.config.predict_normals:
@@ -308,6 +312,11 @@ class NerfactoModel(Model):
             )
             assert metrics_dict is not None and "distortion" in metrics_dict
             loss_dict["distortion_loss"] = self.config.distortion_loss_mult * metrics_dict["distortion"]
+
+            loss_dict["total_variation_loss"] = self.config.total_variation_loss_mult * total_variation_loss(
+                outputs["field_outputs"][FieldHeadNames.DENSITY], type_=self.config.tv_loss_type,
+            )
+
             if self.config.predict_normals:
                 # orientation loss for computed normals
                 loss_dict["orientation_loss"] = self.config.orientation_loss_mult * torch.mean(
