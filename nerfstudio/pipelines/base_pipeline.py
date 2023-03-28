@@ -25,6 +25,7 @@ from typing import Any, Dict, List, Mapping, Optional, Type, Union, cast
 
 import torch
 import torch.distributed as dist
+from loguru import logger
 from rich.progress import (
     BarColumn,
     MofNCompleteColumn,
@@ -108,10 +109,17 @@ class Pipeline(nn.Module):
         return self.model.device
 
     def load_state_dict(self, state_dict: Mapping[str, Any], strict: bool = True):
-        model_state = {key[len("_model.") :]: value for key, value in state_dict.items() if key.startswith("_model.")}
+        model_state = {key[len("_model."):]: value for key, value in state_dict.items() if key.startswith("_model.")}
         pipeline_state = {key: value for key, value in state_dict.items() if not key.startswith("_model.")}
-        self._model.load_state_dict(model_state, strict=strict)
-        super().load_state_dict(pipeline_state, strict=False)
+        try:
+            self._model.load_state_dict(model_state, strict=False)
+        except RuntimeError as e:
+            logger.warning(e)
+
+        try:
+            super().load_state_dict(pipeline_state, strict=False)
+        except RuntimeError as e:
+            logger.warning(e)
 
     @profiler.time_function
     def get_train_loss_dict(self, step: int):

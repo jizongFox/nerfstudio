@@ -42,6 +42,10 @@ def get_interpolated_camera_path(cameras: Cameras, steps: int) -> Cameras:
     poses, Ks = get_interpolated_poses_many(poses, Ks, steps_per_transition=steps)
 
     cameras = Cameras(fx=Ks[:, 0, 0], fy=Ks[:, 1, 1], cx=Ks[0, 0, 2], cy=Ks[0, 1, 2], camera_to_worlds=poses)
+    if any(cameras.height % 2 != 0):
+        cameras.height = torch.ones_like(cameras.height) * int(cameras.height.float().mean() // 2) * 2
+    if any(cameras.width % 2 != 0):
+        cameras.width = torch.ones_like(cameras.width) * int(cameras.width.float().mean() // 2) * 2
     return cameras
 
 
