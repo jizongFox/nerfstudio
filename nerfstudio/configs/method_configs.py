@@ -106,6 +106,90 @@ method_configs["nerfacto"] = TrainerConfig(
     vis="viewer",
 )
 
+method_configs["nerfacto-big"] = TrainerConfig(
+    method_name="nerfacto",
+    steps_per_eval_batch=500,
+    steps_per_save=2000,
+    max_num_iterations=30000,
+    mixed_precision=True,
+    pipeline=VanillaPipelineConfig(
+        datamanager=VanillaDataManagerConfig(
+            dataparser=NerfstudioDataParserConfig(),
+            train_num_rays_per_batch=4096,
+            eval_num_rays_per_batch=4096,
+            camera_optimizer=CameraOptimizerConfig(
+                mode="SO3xR3", optimizer=AdamOptimizerConfig(lr=6e-4, eps=1e-8, weight_decay=1e-2)
+            ),
+        ),
+        model=NerfactoModelConfig(
+            eval_num_rays_per_chunk=1 << 15,
+            num_nerf_samples_per_ray=128,
+            num_proposal_samples_per_ray=(512, 256),
+            hidden_dim=128,
+            hidden_dim_color=128,
+            hidden_dim_transient=128,
+            max_res=3000,
+            proposal_weights_anneal_max_num_iters=5000,
+            log2_hashmap_size=21,
+        ),
+    ),
+    optimizers={
+        "proposal_networks": {
+            "optimizer": AdamOptimizerConfig(lr=1e-2, eps=1e-15),
+            "scheduler": None,
+        },
+        "fields": {
+            "optimizer": AdamOptimizerConfig(lr=1e-2, eps=1e-15),
+            "scheduler": None,
+        },
+    },
+    viewer=ViewerConfig(num_rays_per_chunk=1 << 15),
+    vis="viewer",
+)
+
+method_configs["nerfacto-big-plus"] = TrainerConfig(
+    method_name="nerfacto",
+    steps_per_eval_batch=500,
+    steps_per_save=2000,
+    max_num_iterations=30000,
+    mixed_precision=True,
+    pipeline=VanillaPipelineConfig(
+        datamanager=VanillaDataManagerConfig(
+            dataparser=NerfstudioDataParserConfig(),
+            train_num_rays_per_batch=4096,
+            eval_num_rays_per_batch=4096,
+            camera_optimizer=CameraOptimizerConfig(
+                mode="SO3xR3", optimizer=AdamOptimizerConfig(lr=6e-4, eps=1e-8, weight_decay=1e-2)
+            ),
+        ),
+        model=NerfactoModelConfig(
+            eval_num_rays_per_chunk=1 << 15,
+            num_nerf_samples_per_ray=128,
+            num_proposal_samples_per_ray=(512, 256),
+            hidden_dim=192,
+            hidden_dim_color=192,
+            hidden_dim_transient=192,
+            max_res=4096,
+            proposal_weights_anneal_max_num_iters=5000,
+            log2_hashmap_size=23,
+            proposal_net_args_list=[{"hidden_dim": 16, "log2_hashmap_size": 19, "num_levels": 7, "max_res": 512},
+                                    {"hidden_dim": 16, "log2_hashmap_size": 121, "num_levels": 9, "max_res": 1024}]
+        ),
+    ),
+    optimizers={
+        "proposal_networks": {
+            "optimizer": AdamOptimizerConfig(lr=1e-2, eps=1e-15),
+            "scheduler": None,
+        },
+        "fields": {
+            "optimizer": AdamOptimizerConfig(lr=1e-2, eps=1e-15),
+            "scheduler": None,
+        },
+    },
+    viewer=ViewerConfig(num_rays_per_chunk=1 << 15),
+    vis="viewer",
+)
+
 method_configs["depth-nerfacto"] = TrainerConfig(
     method_name="depth-nerfacto",
     steps_per_eval_batch=500,
