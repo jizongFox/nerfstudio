@@ -39,7 +39,7 @@ class OptimizerConfig(base_config.PrintableConfig):
     """The learning rate to use."""
     eps: float = 1e-08
     """The epsilon value to use."""
-    max_norm: Optional[float] = None
+    max_norm: Optional[float] = 5e-2
     """The max norm to use for gradient clipping."""
 
     # TODO: somehow make this more generic. i dont like the idea of overriding the setup function
