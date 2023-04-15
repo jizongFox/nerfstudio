@@ -110,7 +110,7 @@ method_configs["nerfacto-big"] = TrainerConfig(
     method_name="nerfacto",
     steps_per_eval_batch=500,
     steps_per_save=2000,
-    max_num_iterations=30000,
+    max_num_iterations=100000,
     mixed_precision=True,
     pipeline=VanillaPipelineConfig(
         datamanager=VanillaDataManagerConfig(
@@ -151,7 +151,7 @@ method_configs["nerfacto-big-plus"] = TrainerConfig(
     method_name="nerfacto",
     steps_per_eval_batch=500,
     steps_per_save=2000,
-    max_num_iterations=30000,
+    max_num_iterations=100000,
     mixed_precision=True,
     pipeline=VanillaPipelineConfig(
         datamanager=VanillaDataManagerConfig(
@@ -164,7 +164,7 @@ method_configs["nerfacto-big-plus"] = TrainerConfig(
         ),
         model=NerfactoModelConfig(
             eval_num_rays_per_chunk=1 << 15,
-            num_nerf_samples_per_ray=128,
+            num_nerf_samples_per_ray=192,
             num_proposal_samples_per_ray=(512, 256),
             hidden_dim=192,
             hidden_dim_color=192,
@@ -173,7 +173,7 @@ method_configs["nerfacto-big-plus"] = TrainerConfig(
             proposal_weights_anneal_max_num_iters=5000,
             log2_hashmap_size=23,
             proposal_net_args_list=[{"hidden_dim": 16, "log2_hashmap_size": 19, "num_levels": 7, "max_res": 512},
-                                    {"hidden_dim": 16, "log2_hashmap_size": 121, "num_levels": 9, "max_res": 1024}]
+                                    {"hidden_dim": 16, "log2_hashmap_size": 21, "num_levels": 12, "max_res": 2048}]
         ),
     ),
     optimizers={
