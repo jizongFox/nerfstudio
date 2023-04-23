@@ -65,6 +65,8 @@ class NeuS2DataParserConfig(DataParserConfig):
     """The fraction of images to use for training. The remaining images are for eval."""
     depth_unit_scale_factor: float = 1e-3
     """Scales the depth values to meters. Default value is 0.001 for a millimeter to meter conversion."""
+    inverse_z_axis: bool = False
+    """Inverse z axis if colmap estimation is inversed."""
 
 
 @dataclass
@@ -155,9 +157,12 @@ class NeuS2Parser(DataParser):
         # pose[:, 0:3, 1:3] *= -1
         # pose = pose[:, np.array([1, 0, 2, 3]), :]
 
+        # pose = torch.from_numpy(np.linalg.inv(self.scale_mats_np[0])).float() @ torch.from_numpy(object_scale_mat).float() @ pose
         pose[:, 0:3, 1:3] *= -1  # switch cam coord x,y
         pose = pose[:, [1, 0, 2], :]  # switch world x,y
         pose[:, 2, :] *= -1  # invert world z
+        if self.config.inverse_z_axis:
+            pose[:, 0, :] *= -1  # invert world z # this is to inverse the colmap world coordinate
         # for aabb bbox usage
         pose = pose[:, [1, 2, 0], :]  # switch world xyz to zxy
 
@@ -182,7 +187,7 @@ class NeuS2Parser(DataParser):
             camera_type=camera_type,
             times=None,
         )
-        cameras.rescale_output_resolution(1 / (self.config.downscale_factor * scale_factor))
+        cameras.rescale_output_resolution(1 / (self.config.downscale_factor))
 
         aabb_scale = self.config.scene_scale
         scene_box = SceneBox(
