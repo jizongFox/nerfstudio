@@ -45,6 +45,7 @@ from nerfstudio.data.dataparsers.instant_ngp_dataparser import (
 )
 from nerfstudio.data.dataparsers.minimal_dataparser import MinimalDataParserConfig
 from nerfstudio.data.dataparsers.nerfstudio_dataparser import NerfstudioDataParserConfig
+from nerfstudio.data.dataparsers.neus_dataparser import NeuS2DataParserConfig
 from nerfstudio.data.dataparsers.nuscenes_dataparser import NuScenesDataParserConfig
 from nerfstudio.data.dataparsers.phototourism_dataparser import (
     PhototourismDataParserConfig,
@@ -77,6 +78,7 @@ AnnotatedDataParserUnion = tyro.conf.OmitSubcommandPrefixes[  # Omit prefixes of
             "phototourism-data": PhototourismDataParserConfig(),
             "dycheck-data": DycheckDataParserConfig(),
             "sdfstudio-data": SDFStudioDataParserConfig(),
+            "neus-data": NeuS2DataParserConfig()
         },
         prefix_names=False,  # Omit prefixes in subcommands themselves.
     )
