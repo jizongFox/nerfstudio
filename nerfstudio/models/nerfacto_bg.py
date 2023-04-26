@@ -3,16 +3,15 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Type, Dict, List, Tuple
 
-import numpy as np
 import torch
 from torch.nn import Parameter
 
 from nerfstudio.cameras.rays import RayBundle, RaySamples
 from nerfstudio.field_components.field_heads import FieldHeadNames
-from nerfstudio.fields.density_fields import HashMLPDensityField
+from nerfstudio.field_components.spatial_distortions import SceneContraction
 from nerfstudio.fields.nerfacto_field import TCNNNerfactoField
 from nerfstudio.model_components.losses import orientation_loss, pred_normal_loss
-from nerfstudio.model_components.ray_samplers import LinearDisparitySampler, UniformSampler, ProposalNetworkSampler
+from nerfstudio.model_components.ray_samplers import UniformLinDispPiecewiseSampler
 from nerfstudio.model_components.scene_colliders import AABBBoxCollider
 from nerfstudio.models.nerfacto import NerfactoModelConfig, NerfactoModel
 from nerfstudio.utils import colormaps
@@ -25,10 +24,10 @@ class NerfactoModelWithBackgroundConfig(NerfactoModelConfig):
     num_samples_outside: int = 48
     """ Sample numbers outside sphere.   """
 
-    far_plane_bg: float = 100
+    far_plane_bg: float = 30
     """sample inversely from far to 1000 and points and forward the bg model"""
 
-    use_background: bool = False
+    use_background: bool = True
 
 
 class NerfactoModelWithBackground(NerfactoModel):
@@ -37,72 +36,24 @@ class NerfactoModelWithBackground(NerfactoModel):
     def populate_modules(self):
 
         super(NerfactoModelWithBackground, self).populate_modules()
-        self.field = TCNNNerfactoField(
-            self.scene_box.aabb,
-            hidden_dim=self.config.hidden_dim,
-            num_levels=self.config.num_levels,
-            max_res=self.config.max_res,
-            log2_hashmap_size=self.config.log2_hashmap_size,
-            hidden_dim_color=self.config.hidden_dim_color,
-            hidden_dim_transient=self.config.hidden_dim_transient,
-            spatial_distortion=None,
-            num_images=self.num_train_data,
-            use_pred_normals=self.config.predict_normals,
-            use_average_appearance_embedding=self.config.use_average_appearance_embedding,
-        )
-
+        self.field.spatial_distortion = None
         # Collider
-        self.collider = AABBBoxCollider(self.scene_box, near_plane=0.05)
+        self.collider = AABBBoxCollider(self.scene_box, near_plane=0.005)
         if self.config.use_background:
             self.field_background = TCNNNerfactoField(
                 self.scene_box.aabb,
-                spatial_distortion=self.scene_contraction,
+                spatial_distortion=SceneContraction(order=float("inf")),
                 num_images=self.num_train_data,
                 use_average_appearance_embedding=self.config.use_average_appearance_embedding,
             )
-            self.density_fns_background = []
-            num_prop_nets = self.config.num_proposal_iterations
-            # Build the proposal network(s)
-            self.proposal_networks_background = torch.nn.ModuleList()
-
-            for i in range(num_prop_nets):
-                prop_net_args = self.config.proposal_net_args_list[min(i, len(self.config.proposal_net_args_list) - 1)]
-                network = HashMLPDensityField(
-                    self.scene_box.aabb,
-                    spatial_distortion=self.scene_contraction,
-                    **prop_net_args,
-                )
-                self.proposal_networks_background.append(network)
-            self.density_fns_background.extend([network.density_fn for network in self.proposal_networks])
-            self.sampler_bg = LinearDisparitySampler(num_samples=self.config.num_samples_outside)
-
-            update_schedule = lambda step: np.clip(
-                np.interp(step, [0, self.config.proposal_warmup], [0, self.config.proposal_update_every]),
-                1,
-                self.config.proposal_update_every,
-            )
-
-            # Change proposal network initial sampler if uniform
-            initial_sampler = None  # None is for piecewise as default (see ProposalNetworkSampler)
-            if self.config.proposal_initial_sampler == "uniform":
-                initial_sampler = UniformSampler(single_jitter=self.config.use_single_jitter)
-
-            self.proposal_sampler_background = ProposalNetworkSampler(
-                num_nerf_samples_per_ray=self.config.num_nerf_samples_per_ray,
-                num_proposal_samples_per_ray=self.config.num_proposal_samples_per_ray,
-                num_proposal_network_iterations=self.config.num_proposal_iterations,
-                single_jitter=self.config.use_single_jitter,
-                update_sched=update_schedule,
-                initial_sampler=initial_sampler,
-            )
+            self.sampler_bg = UniformLinDispPiecewiseSampler(num_samples=64, single_jitter=True)
 
         else:
             self.background = torch.nn.Parameter(torch.tensor(0, dtype=torch.float, device="cuda"))
 
     def get_param_groups(self) -> Dict[str, List[Parameter]]:
-        param_groups = {}
-        param_groups["proposal_networks"] = list(self.proposal_networks.parameters())
-        param_groups["fields"] = list(self.field.parameters())
+        param_groups = {"proposal_networks": list(self.proposal_networks.parameters()),
+                        "fields": list(self.field.parameters())}
         if self.config.use_background:
             param_groups["background_fields"] = list(self.field_background.parameters())
         else:
@@ -110,6 +61,7 @@ class NerfactoModelWithBackground(NerfactoModel):
         return param_groups
 
     def get_outputs(self, ray_bundle: RayBundle):
+
         ray_samples, weights_list, ray_samples_list = self.proposal_sampler(ray_bundle, density_fns=self.density_fns)
         ray_samples: RaySamples
         field_outputs = self.field(ray_samples, compute_normals=self.config.predict_normals)
