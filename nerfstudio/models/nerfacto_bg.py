@@ -14,7 +14,6 @@ from nerfstudio.model_components.losses import orientation_loss, pred_normal_los
 from nerfstudio.model_components.ray_samplers import UniformLinDispPiecewiseSampler
 from nerfstudio.model_components.scene_colliders import AABBBoxCollider
 from nerfstudio.models.nerfacto import NerfactoModelConfig, NerfactoModel
-from nerfstudio.utils import colormaps
 
 
 @dataclass
@@ -120,8 +119,10 @@ class NerfactoModelWithBackground(NerfactoModel):
             depth_bg = self.renderer_depth(weights=weights_bg, ray_samples=ray_samples_bg)
             accumulation_bg = self.renderer_accumulation(weights=weights_bg)
 
-            # merge background color to forgound color
+            # merge background color to foreground color
+            rgb: torch.Tensor
             rgb = rgb + bg_transmittance * rgb_bg
+            rgb = torch.clip(rgb, min=0.0, max=1.0)
 
             bg_outputs = {
                 "bg_rgb": rgb_bg,
@@ -137,40 +138,8 @@ class NerfactoModelWithBackground(NerfactoModel):
     def get_image_metrics_and_images(
             self, outputs: Dict[str, torch.Tensor], batch: Dict[str, torch.Tensor]
     ) -> Tuple[Dict[str, float], Dict[str, torch.Tensor]]:
-        image = batch["image"].to(self.device)
-        rgb = outputs["rgb"]
-        torch.clamp_(rgb, min=0.0, max=1.0)
-        acc = colormaps.apply_colormap(outputs["accumulation"])
-        depth = colormaps.apply_depth_colormap(
-            outputs["depth"],
-            accumulation=outputs["accumulation"],
-        )
+        metrics_dict, images_dict = super().get_image_metrics_and_images(outputs, batch)
 
-        combined_rgb = torch.cat([image, rgb], dim=1)
-        combined_acc = torch.cat([acc], dim=1)
-        combined_depth = torch.cat([depth], dim=1)
-
-        # Switch images from [H, W, C] to [1, C, H, W] for metrics computations
-        image = torch.moveaxis(image, -1, 0)[None, ...]
-        rgb = torch.moveaxis(rgb, -1, 0)[None, ...]
-
-        psnr = self.psnr(image, rgb)
-        ssim = self.ssim(image, rgb)
-        lpips = self.lpips(image, rgb)
-
-        # all of these metrics will be logged as scalars
-        metrics_dict = {"psnr": float(psnr.item()), "ssim": float(ssim)}  # type: ignore
-        metrics_dict["lpips"] = float(lpips)
-
-        images_dict = {"img": combined_rgb, "accumulation": combined_acc, "depth": combined_depth}
-
-        for i in range(self.config.num_proposal_iterations):
-            key = f"prop_depth_{i}"
-            prop_depth_i = colormaps.apply_depth_colormap(
-                outputs[key],
-                accumulation=outputs["accumulation"],
-            )
-            images_dict[key] = prop_depth_i
         # background
         if self.config.use_background:
             images_dict["foreground"] = outputs["foreground"]
