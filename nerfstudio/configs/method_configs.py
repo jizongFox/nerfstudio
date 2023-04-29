@@ -110,7 +110,7 @@ method_configs["nerfacto"] = TrainerConfig(
 )
 
 method_configs["nerfacto-big"] = TrainerConfig(
-    method_name="nerfacto",
+    method_name="nerfacto-big",
     steps_per_eval_batch=500,
     steps_per_save=2000,
     steps_per_eval_all_images=3000,
