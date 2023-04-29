@@ -43,6 +43,7 @@ from nerfstudio.data.dataparsers.base_dataparser import DataparserOutputs
 from nerfstudio.data.dataparsers.blender_dataparser import BlenderDataParserConfig
 from nerfstudio.data.dataparsers.dnerf_dataparser import DNeRFDataParserConfig
 from nerfstudio.data.dataparsers.dycheck_dataparser import DycheckDataParserConfig
+from nerfstudio.data.dataparsers.friends_dataparser import FriendsDataParserConfig
 from nerfstudio.data.dataparsers.instant_ngp_dataparser import (
     InstantNGPDataParserConfig,
 )
@@ -117,6 +118,7 @@ AnnotatedDataParserUnion = tyro.conf.OmitSubcommandPrefixes[  # Omit prefixes of
             "nerfosr-data": NeRFOSRDataParserConfig(),
             "sitcoms3d-data": Sitcoms3DDataParserConfig(),
             "neus-data": NeuS2DataParserConfig(),
+            "friends-data": FriendsDataParserConfig()
         },
         prefix_names=False,  # Omit prefixes in subcommands themselves.
     )
