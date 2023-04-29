@@ -51,11 +51,11 @@ class SDFStudioDataParserConfig(DataParserConfig):
     scene_scale: float = 2.0
     """
     Sets the bounding cube to have edge length of this size.
-    The longest dimension of the Friends axis-aligned bbox will be scaled to this value.
+    The longest dimension of the axis-aligned bbox will be scaled to this value.
     """
     skip_every_for_val_split: int = 1
     """sub sampling validation images"""
-    auto_orient: bool = False
+    auto_orient: bool = True
 
 
 @dataclass
@@ -107,6 +107,7 @@ class SDFStudio(DataParser):
         fy = torch.stack(fy)
         cx = torch.stack(cx)
         cy = torch.stack(cy)
+        c2w_colmap = torch.stack(camera_to_worlds)
         camera_to_worlds = torch.stack(camera_to_worlds)
 
         # Convert from COLMAP's/OPENCV's camera coordinate system to nerfstudio
@@ -116,7 +117,7 @@ class SDFStudio(DataParser):
             camera_to_worlds, transform = camera_utils.auto_orient_and_center_poses(
                 camera_to_worlds,
                 method="up",
-                center_poses=False,
+                center_method="none",
             )
 
         # scene box from meta data
@@ -140,8 +141,8 @@ class SDFStudio(DataParser):
 
         # TODO supports downsample
         # cameras.rescale_output_resolution(scaling_factor=1.0 / self.config.downscale_factor)
-
-        assert meta["has_mono_prior"] == self.config.include_mono_prior, f"no mono prior in {self.config.data}"
+        if self.config.include_mono_prior:
+            assert meta["has_mono_prior"], f"no mono prior in {self.config.data}"
 
         dataparser_outputs = DataparserOutputs(
             image_filenames=image_filenames,
@@ -151,7 +152,8 @@ class SDFStudio(DataParser):
                 "depth_filenames": depth_filenames if len(depth_filenames) > 0 else None,
                 "normal_filenames": normal_filenames if len(normal_filenames) > 0 else None,
                 "transform": transform,
-                "camera_to_worlds": camera_to_worlds if len(camera_to_worlds) > 0 else None,
+                # required for normal maps, these are in colmap format so they require c2w before conversion
+                "camera_to_worlds": c2w_colmap if len(c2w_colmap) > 0 else None,
                 "include_mono_prior": self.config.include_mono_prior,
             },
         )
