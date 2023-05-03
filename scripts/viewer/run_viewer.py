@@ -6,7 +6,9 @@ from __future__ import annotations
 
 import time
 from dataclasses import dataclass, field, fields
+from functools import partial
 from pathlib import Path
+from typing import Optional, Literal
 
 import tyro
 from rich.console import Console
@@ -40,6 +42,8 @@ class RunViewer:
     """Path to config YAML file."""
     viewer: ViewerConfigWithoutNumRays = field(default_factory=ViewerConfigWithoutNumRays)
     """Viewer configuration"""
+    mode: Optional[Literal["bg", "fg"]] = None
+    scene_box_size_ratio: float = 1
 
     def main(self) -> None:
         """Main function."""
@@ -50,9 +54,23 @@ class RunViewer:
         )
         num_rays_per_chunk = config.viewer.num_rays_per_chunk
         assert self.viewer.num_rays_per_chunk == -1
+        mode = self.mode
+        scene_scale = self.scene_box_size_ratio
+
         config.vis = "viewer"
-        config.viewer = self.viewer.as_viewer_config()
+        config.viewer = self.viewer
         config.viewer.num_rays_per_chunk = num_rays_per_chunk
+
+        if self.mode is not None:
+            if not hasattr(pipeline._model, "get_outputs_fg_bg"):
+                raise RuntimeError(f"{pipeline._model} does not have foreground background function")
+            print(f"changing rendering to {mode}")
+            pipeline._model.get_outputs = partial(pipeline._model.get_outputs_fg_bg, mode=self.mode,
+                                                  scene_box_size_ratio=self.scene_box_size_ratio)
+            if self.mode == "fg":
+                pipeline._model.renderer_rgb.background_color = "white"
+            elif self.mode == "bg":
+                pipeline._model.renderer_rgb.background_color = "last_sample"
 
         _start_viewer(config, pipeline, step)
 

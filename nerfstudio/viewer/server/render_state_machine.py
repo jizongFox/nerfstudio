@@ -18,9 +18,11 @@ from __future__ import annotations
 import contextlib
 import threading
 from dataclasses import dataclass
+from functools import lru_cache
 from typing import TYPE_CHECKING, Any, Dict, Optional, Tuple
 
 import torch
+from tqdm import tqdm
 from typing_extensions import Literal, get_args
 
 from nerfstudio.cameras.cameras import Cameras, CameraType
@@ -89,7 +91,7 @@ class RenderStateMachine(threading.Thread):
         if self.next_action is None:
             self.next_action = action
         elif action.action == "step" and (
-            self.state == "low_move" or self.next_action.action in ("move", "static", "rerender")
+                self.state == "low_move" or self.next_action.action in ("move", "static", "rerender")
         ):
             # ignore steps if:
             #  1. we are in low_moving state
@@ -186,7 +188,13 @@ class RenderStateMachine(threading.Thread):
             name=EventName.VIS_RAYS_PER_SEC, duration=num_rays / render_time, step=step, avg_over_steps=True
         )
         self.viewer.viser_server.send_status_message(eval_res=f"{image_height}x{image_width}px", step=step)
+        self.tqdm.set_postfix_str(f"{image_height}x{image_width}px, duration: {render_time:.2f}")
         return outputs
+
+    @property
+    @lru_cache()
+    def tqdm(self):
+        return tqdm(dynamic_ncols=True, leave=False, position=0, desc="Rendering")
 
     def run(self):
         """Main loop for the render thread"""
