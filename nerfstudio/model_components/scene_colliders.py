@@ -19,6 +19,7 @@ Scene Colliders
 from __future__ import annotations
 
 import torch
+from loguru import logger
 from torch import nn
 from torchtyping import TensorType
 
@@ -40,6 +41,9 @@ class SceneCollider(nn.Module):
     def forward(self, ray_bundle: RayBundle) -> RayBundle:
         """Sets the nears and fars if they are not set already."""
         if ray_bundle.nears is not None and ray_bundle.fars is not None:
+            logger.warning(
+                f"{ray_bundle.__class__.__name__} already has nears and fars set. "
+                f"Skipping {self.__class__.__name__} collider.")
             return ray_bundle
         return self.set_nears_and_fars(ray_bundle)
 
