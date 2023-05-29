@@ -615,7 +615,24 @@ def colmap_to_json(
         w2c = np.concatenate([w2c, np.array([[0, 0, 0, 1]])], 0)
         c2w = np.linalg.inv(w2c)
         # Convert from COLMAP's camera coordinate system to ours
-        c2w[0:3, 1:3] *= -1
+
+        # c2w[0:3, 1:3] *= -1
+        method1 = c2w.copy()
+        method1[0:3, 1:3] *= -1
+        method2 = c2w @ np.diag([1, -1, -1, 1])
+        # c2w = c2w@np.diag([1, -1, -1, 1])
+        assert np.allclose(method1, method2), (method1, method2)
+        c2w = method1
+
+        # second transformation
+        method1 = c2w.copy()
+        method1 = np.array([[0, 1, 0, 0], [1, 0, 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]]) @ method1
+
+        method2 = c2w.copy()
+        method2 = method2[np.array([1, 0, 2, 3]), :]
+        method2[2, :] *= -1
+
+        assert np.allclose(method1, method2), (method1, method2)
         c2w = c2w[np.array([1, 0, 2, 3]), :]
         c2w[2, :] *= -1
 
