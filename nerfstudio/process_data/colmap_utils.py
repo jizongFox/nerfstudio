@@ -46,6 +46,7 @@ from typing import Dict, Optional, Tuple
 import appdirs
 import numpy as np
 import requests
+import trimesh
 from rich.console import Console
 from rich.progress import track
 from typing_extensions import Literal
@@ -694,6 +695,20 @@ def colmap_to_json(
         json.dump(out, f, indent=4)
 
     return len(frames)
+
+
+def colmap_to_sparse_point_cloud(
+        points_path: Path,
+        output_dir: Path,
+) -> None:
+    points3d = read_points3d_binary(points_path)
+    point3d_xyz = np.stack([p.xyz for p in points3d.values()], 0)
+    # bottom = np.ones((point3d_xyz.shape[0], 1))
+    # point3d_xyz = (np.array([[0, 1, 0, 0], [1, 0, 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]]) @ np.concatenate(
+    #     [point3d_xyz, bottom], 1).T).T[:, :3]
+
+    pcd = trimesh.PointCloud(point3d_xyz)
+    pcd.export(str(output_dir / 'sparse_points.ply'))
 
 
 def get_matching_summary(num_intial_frames: int, num_matched_frames: int) -> str:

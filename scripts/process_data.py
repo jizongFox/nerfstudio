@@ -89,6 +89,8 @@ class ProcessImages:
     """If True, print extra logging."""
     enable_alignment: bool = False
     """if enable alignment between the camera poses and the world coordinate"""
+    explore_pcd: bool = False
+    """if explore the point cloud to get the bounding box of the scene"""
 
     def main(self) -> None:
         """Process images into a nerfstudio dataset."""
@@ -156,6 +158,13 @@ class ProcessImages:
             sys.exit(1)
         else:
             CONSOLE.log("[bold yellow]Warning: could not find existing COLMAP results. Not generating transforms.json")
+
+        if self.explore_pcd:
+            with CONSOLE.status("[bold yellow]Explore the point cloud", spinner="balloon"):
+                colmap_utils.colmap_to_sparse_point_cloud(
+                    points_path=colmap_model_path / "points3D.bin",
+                    output_dir=self.output_dir,
+                )
 
         CONSOLE.rule("[bold green]:tada: :tada: :tada: All DONE :tada: :tada: :tada:")
 

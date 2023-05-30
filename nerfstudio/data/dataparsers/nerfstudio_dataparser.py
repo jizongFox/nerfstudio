@@ -23,6 +23,7 @@ from typing import Optional, Type
 import numpy as np
 import torch
 from PIL import Image
+from loguru import logger
 from rich.console import Console
 from typing_extensions import Literal
 
@@ -35,6 +36,7 @@ from nerfstudio.data.dataparsers.base_dataparser import (
 )
 from nerfstudio.data.scene_box import SceneBox
 from nerfstudio.utils.io import load_from_json
+from .nerfstudio_dataparser_normalization import NerfStudioDataParserNormalizationConfig
 
 CONSOLE = Console(width=120)
 MAX_AUTO_RESOLUTION = 1600
@@ -64,6 +66,15 @@ class NerfstudioDataParserConfig(DataParserConfig):
     """The fraction of images to use for training. The remaining images are for eval."""
     depth_unit_scale_factor: float = 1e-3
     """Scales the depth values to meters. Default value is 0.001 for a millimeter to meter conversion."""
+    use_pcd_alignment: bool = False
+    """Whether to use pcd alignment to align the point clouds. If True, the point cloud would be used."""
+    pcd_config: NerfStudioDataParserNormalizationConfig = field(
+        default_factory=lambda: NerfStudioDataParserNormalizationConfig)
+
+    def __post_init__(self):
+        if self.use_pcd_alignment:
+            assert self.pcd_config.pcd_path is not None, "pcd_path must be specified when use_pcd_alignment is True."
+            self.auto_scale_poses = False
 
 
 @dataclass
@@ -222,14 +233,19 @@ class Nerfstudio(DataParser):
             orientation_method = self.config.orientation_method
 
         poses = torch.from_numpy(np.array(poses).astype(np.float32))
-        poses, transform_matrix = camera_utils.auto_orient_and_center_poses(
-            poses,
-            method=orientation_method,
-            center_method=self.config.center_method,
-        )
+        scale_factor = 1.0
+        if self.config.use_pcd_alignment:
+            logger.debug("Aligning poses with PCD")
+            poses, transform_matrix, _scale = self.config.pcd_config.auto_orient_and_center_poses(poses)
+            scale_factor *= _scale
+        else:
+            poses, transform_matrix = camera_utils.auto_orient_and_center_poses(
+                poses,
+                method=orientation_method,
+                center_method=self.config.center_method,
+            )
 
         # Scale poses
-        scale_factor = 1.0
         if self.config.auto_scale_poses:
             scale_factor /= float(torch.max(torch.abs(poses[:, :3, 3])))
         scale_factor *= self.config.scale_factor
