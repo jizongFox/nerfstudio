@@ -489,14 +489,15 @@ def get_vocab_tree() -> Path:
 
 
 def run_colmap(
-    image_dir: Path,
-    colmap_dir: Path,
-    camera_model: CameraModel,
-    camera_mask_path: Optional[Path] = None,
-    gpu: bool = True,
-    verbose: bool = False,
-    matching_method: Literal["vocab_tree", "exhaustive", "sequential"] = "vocab_tree",
-    colmap_cmd: str = "colmap",
+        image_dir: Path,
+        colmap_dir: Path,
+        camera_model: CameraModel,
+        camera_mask_path: Optional[Path] = None,
+        gpu: bool = True,
+        verbose: bool = False,
+        matching_method: Literal["vocab_tree", "exhaustive", "sequential"] = "vocab_tree",
+        colmap_cmd: str = "colmap",
+        enable_alignment: bool = False,
 ) -> None:
     """Runs COLMAP on the images.
 
@@ -509,6 +510,7 @@ def run_colmap(
         verbose: If True, logs the output of the command.
         matching_method: Matching method to use.
         colmap_cmd: Path to the COLMAP executable.
+        enable_alignment: if enable alignment
     """
 
     colmap_version = get_colmap_version(colmap_cmd)
@@ -580,13 +582,24 @@ def run_colmap(
         run_command(" ".join(bundle_adjuster_cmd), verbose=verbose)
     CONSOLE.log("[bold green]:tada: Done refining intrinsics.")
 
+    if enable_alignment:
+        with status(msg="[bold yellow]Orientation Alignment...", spinner="dqpb", verbose=verbose):
+            bundle_adjuster_cmd = [
+                f"{colmap_cmd} model_orientation_aligner",
+                f"--image_path {image_dir}",
+                "--input_path", f"{sparse_dir}/0/",
+                "--output_path", f"{sparse_dir}/0/",
+            ]
+            run_command(" ".join(bundle_adjuster_cmd), verbose=verbose)
+        CONSOLE.log("[bold green]:tada: Done Orientation Alignment.")
+
 
 def colmap_to_json(
-    cameras_path: Path,
-    images_path: Path,
-    output_dir: Path,
-    camera_model: CameraModel,
-    camera_mask_path: Optional[Path] = None,
+        cameras_path: Path,
+        images_path: Path,
+        output_dir: Path,
+        camera_model: CameraModel,
+        camera_mask_path: Optional[Path] = None,
 ) -> int:
     """Converts COLMAP's cameras.bin and images.bin to a JSON file.
 

@@ -18,6 +18,7 @@ import os
 import shutil
 import sys
 from enum import Enum
+from multiprocessing.dummy import Pool
 from pathlib import Path
 from typing import List, Optional, Tuple
 
@@ -290,7 +291,8 @@ def downscale_images(image_dir: Path, num_downscales: int, folder_name: str = "i
             downscale_dir.mkdir(parents=True, exist_ok=True)
             # Using %05d ffmpeg commands appears to be unreliable (skips images), so use scandir.
             files = os.scandir(image_dir)
-            for f in files:
+
+            def _worker(f):
                 filename = f.name
                 ffmpeg_cmd = [
                     f'ffmpeg -y -noautorotate -i "{image_dir / filename}" ',
@@ -299,6 +301,9 @@ def downscale_images(image_dir: Path, num_downscales: int, folder_name: str = "i
                 ]
                 ffmpeg_cmd = " ".join(ffmpeg_cmd)
                 run_command(ffmpeg_cmd, verbose=verbose)
+
+            with Pool(os.cpu_count()) as pool:
+                pool.map(_worker, files)
 
     CONSOLE.log("[bold green]:tada: Done downscaling images.")
     downscale_text = [f"[bold blue]{2**(i+1)}x[/bold blue]" for i in range(num_downscales)]

@@ -87,6 +87,8 @@ class ProcessImages:
     """If True, use GPU."""
     verbose: bool = False
     """If True, print extra logging."""
+    enable_alignment: bool = False
+    """if enable alignment between the camera poses and the world coordinate"""
 
     def main(self) -> None:
         """Process images into a nerfstudio dataset."""
@@ -175,6 +177,7 @@ class ProcessImages:
                 verbose=self.verbose,
                 matching_method=self.matching_method,
                 colmap_cmd=self.colmap_cmd,
+                enable_alignment=self.enable_alignment
             )
         elif sfm_tool == "hloc":
             hloc_utils.run_hloc(
@@ -248,6 +251,8 @@ class ProcessVideo:
     """If True, use GPU."""
     verbose: bool = False
     """If True, print extra logging."""
+    enable_alignment: bool = False
+    """if enable alignment between the camera poses and the world coordinate"""
 
     def main(self) -> None:
         """Process video into a nerfstudio dataset."""
@@ -296,6 +301,7 @@ class ProcessVideo:
                     verbose=self.verbose,
                     matching_method=self.matching_method,
                     colmap_cmd=self.colmap_cmd,
+                    enable_alignment=self.enable_alignment,
                 )
             elif sfm_tool == "hloc":
                 if mask_path is not None:
@@ -373,6 +379,8 @@ class ProcessInsta360:
     """If True, use GPU."""
     verbose: bool = False
     """If True, print extra logging."""
+    enable_alignment: bool = False
+    """if enable alignment between the camera poses and the world coordinate"""
 
     def main(self) -> None:
         """Process video into a nerfstudio dataset."""
@@ -434,6 +442,7 @@ class ProcessInsta360:
                 verbose=self.verbose,
                 matching_method=self.matching_method,
                 colmap_cmd=self.colmap_cmd,
+                enable_alignment=self.enable_alignment,
             )
 
         # Save transforms.json
