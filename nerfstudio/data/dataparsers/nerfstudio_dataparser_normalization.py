@@ -94,7 +94,6 @@ class NerfStudioDataParserNormalizationConfig(PrintableConfig):
         vertices = pcd.vertices
         vertices = np.einsum("ij,kj->ki", t1, vertices)
         origin = poses[:, :3, 3].numpy()
-        # plot_origin_mesh(origin, vertices)
         # breakpoint()
 
         bbox_max = np.max(vertices, axis=0)
@@ -105,7 +104,7 @@ class NerfStudioDataParserNormalizationConfig(PrintableConfig):
         translation = -center
         scale_mat = np.eye(4)
         scale_mat[:3, :3] = rotation
-        scale_mat[:3, 3] = translation * radius
+        scale_mat[:3, 3] = translation
         scale_mat = torch.from_numpy(scale_mat).float()
         logger.debug(f"radius: {radius}")
 
