@@ -109,9 +109,11 @@ class NerfStudioDataParserNormalizationConfig(PrintableConfig):
         logger.debug(f"radius: {radius}")
 
         z_flip_matrix = np.zeros((4, 4))
-        z_flip_matrix[0, 1] = 1.0
-        z_flip_matrix[1, 2] = 1.0
+        z_flip_matrix[0, 2] = 1.0
+        z_flip_matrix[1, 1] = 1.0
         z_flip_matrix[2, 0] = -1.0
         z_flip_matrix[3, 3] = 1.0
-        z_flip_matrix = torch.from_numpy(z_flip_matrix).float()
+        z_flip_matrix = torch.from_numpy(z_flip_matrix).float()  # this is problematic for the handless of the
+        assert torch.linalg.det(z_flip_matrix) > 0, f"z_flip_matrix should maintain the right-handedness, " \
+                                                    f"given det():{torch.linalg.det(z_flip_matrix)}"
         return z_flip_matrix @ scale_mat @ poses, scale_mat, 1 / radius * self.pcd_scale

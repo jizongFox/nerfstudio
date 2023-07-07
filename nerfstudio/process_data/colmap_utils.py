@@ -633,7 +633,7 @@ def colmap_to_json(
         # c2w[0:3, 1:3] *= -1
         method1 = c2w.copy()
         method1[0:3, 1:3] *= -1
-        method2 = c2w @ np.diag([1, -1, -1, 1])
+        method2 = c2w @ np.diag([1, -1, -1, 1])  # flip two axes does not affect the handness of the coordinates
         # c2w = c2w@np.diag([1, -1, -1, 1])
         assert np.allclose(method1, method2), (method1, method2)
         c2w = method1
@@ -641,6 +641,7 @@ def colmap_to_json(
         # second transformation
         method1 = c2w.copy()
         method1 = np.array([[0, 1, 0, 0], [1, 0, 0, 0], [0, 0, -1, 0], [0, 0, 0, 1]]) @ method1
+        # this determinant is 1, so it is again the righthand coordinates
 
         method2 = c2w.copy()
         method2 = method2[np.array([1, 0, 2, 3]), :]
