@@ -1,7 +1,6 @@
 #!/usr/bin/env python
 """Processes a video or image sequence to a nerfstudio compatible dataset."""
 
-
 import json
 import sys
 import zipfile
@@ -348,6 +347,62 @@ class ProcessVideo:
 
         CONSOLE.rule("[bold green]:tada: :tada: :tada: All DONE :tada: :tada: :tada:")
 
+        for summary in summary_log:
+            CONSOLE.print(summary, justify="center")
+        CONSOLE.rule()
+
+
+@dataclass
+class UndistortImages:
+    """
+    undistort image and create transformation.json using pinhole camera
+    """
+    image_path: Path
+    """image folder including original images"""
+    colmap_model_path: Path
+    """colmap model path including colmap cameras.bin, images.bin, and points3d.bin with opencv camera model"""
+    output_dir: Path
+    """undistort output directory"""
+    num_downscales: int = 3
+    """Number of times to downscale the images. Downscales by 2 each time. For example a value of 3
+        will downscale the images by 2x, 4x, and 8x. if 0, skip it"""
+
+    export_pcd: bool = False
+    """if extract pcd from undistorted data"""
+    verbose: bool = False
+    """If True, print extra logging."""
+
+    def main(self) -> None:
+        assert self.image_path.exists() and self.image_path.is_dir(), self.image_path
+        assert self.colmap_model_path.exists() and (self.colmap_model_path / "cameras.bin").exists() \
+               and (self.colmap_model_path / "images.bin").exists() \
+               and (self.colmap_model_path / "points3D.bin").exists(), \
+            "colmap_model_path wrong"
+
+        # assert not self.output_dir.exists(), f"{self.output_dir} exists, aborting"
+
+        image_length = sorted(self.image_path.glob("*.png"))
+        if len(image_length) == 0:
+            raise ValueError(f"{self.image_path} contains 0 files.")
+
+        summary_log = []
+        colmap_utils.run_undistort(self.image_path, self.colmap_model_path, self.output_dir)
+
+        if self.num_downscales > 0:
+            process_data_utils.downscale_images(self.output_dir / "images", self.num_downscales, verbose=self.verbose)
+
+        # read json from undistorted dataset.
+        num_matched_frames = colmap_utils.colmap_to_json(
+            cameras_path=self.output_dir / "sparse" / "cameras.bin",
+            images_path=self.output_dir / "sparse" / "images.bin",
+            output_dir=self.output_dir,
+            camera_model=CAMERA_MODELS["pinhole"],
+        )
+        summary_log.append(f"Colmap matched {num_matched_frames} images")
+
+        if self.export_pcd:
+            colmap_utils.colmap_to_sparse_point_cloud(self.output_dir / "sparse" / "points3D.bin",
+                                                      output_dir=self.output_dir)
         for summary in summary_log:
             CONSOLE.print(summary, justify="center")
         CONSOLE.rule()
@@ -838,6 +893,7 @@ class ProcessRealityCapture:
 
 Commands = Union[
     Annotated[ProcessImages, tyro.conf.subcommand(name="images")],
+    Annotated[UndistortImages, tyro.conf.subcommand(name="undistort-images")],
     Annotated[ProcessVideo, tyro.conf.subcommand(name="video")],
     Annotated[ProcessPolycam, tyro.conf.subcommand(name="polycam")],
     Annotated[ProcessMetashape, tyro.conf.subcommand(name="metashape")],

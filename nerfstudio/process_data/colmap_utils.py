@@ -689,6 +689,15 @@ def colmap_to_json(
                 "k4": float(camera_params[7]),
             }
         )
+    if camera_model == CameraModel.PINHOLE:
+        out.update(
+            {
+                "k1": float(0),
+                "k2": float(0),
+                "p1": float(0),
+                "p2": float(0),
+            }
+        )
 
     out["frames"] = frames
 
@@ -737,3 +746,15 @@ def get_matching_summary(num_intial_frames: int, num_matched_frames: int) -> str
         result += " or large exposure changes."
         return result
     return f"[bold green]COLMAP found poses for {num_matched_frames / num_intial_frames * 100:.2f}% of the images."
+
+
+def run_undistort(image_path, input_path, output_path):
+    undistort_cmd = f"colmap image_undistorter --image_path {image_path} " \
+                    f"--input_path {input_path} --output_path {output_path} --output_type COLMAP"
+
+    with status(
+            msg="[bold yellow]Running COLMAP un-distortion",
+            spinner="circle",
+            verbose=False,
+    ):
+        run_command(undistort_cmd, verbose=False)

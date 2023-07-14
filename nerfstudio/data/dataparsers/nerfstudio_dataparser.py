@@ -329,7 +329,7 @@ class Nerfstudio(DataParser):
         )
         return dataparser_outputs
 
-    def _get_fname(self, filepath: PurePath, data_dir: PurePath, downsample_folder_prefix="images_") -> Path:
+    def _get_fname(self, filepath: Path, data_dir: Path, downsample_folder_prefix="images_") -> Path:
         """Get the filename of the image file.
         downsample_folder_prefix can be used to point to auxiliary image data, e.g. masks
 
@@ -345,13 +345,13 @@ class Nerfstudio(DataParser):
                 max_res = max(h, w)
                 df = 0
                 while True:
-                    if (max_res / 2 ** (df)) < MAX_AUTO_RESOLUTION:
+                    if (max_res / 2 ** df) < MAX_AUTO_RESOLUTION:
                         break
-                    if not (data_dir / f"{downsample_folder_prefix}{2**(df+1)}" / filepath.name).exists():
+                    if not (data_dir / f"{downsample_folder_prefix}{2 ** (df + 1)}" / filepath.name).exists():
                         break
                     df += 1
 
-                self.downscale_factor = 2**df
+                self.downscale_factor = 2 ** df
                 CONSOLE.log(f"Auto image downscale factor of {self.downscale_factor}")
             else:
                 self.downscale_factor = self.config.downscale_factor
