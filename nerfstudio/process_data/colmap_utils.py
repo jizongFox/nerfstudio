@@ -758,3 +758,15 @@ def run_undistort(image_path, input_path, output_path):
             verbose=False,
     ):
         run_command(undistort_cmd, verbose=False)
+
+
+def move_sparse_folder(old_dir: Path, new_dir: Path):
+    import shutil
+    import uuid
+    assert old_dir.exists(), old_dir
+    tmp_folder = str(uuid.uuid4())
+    if new_dir.exists():
+        new_dir.unlink(missing_ok=True)
+    shutil.move(old_dir, tmp_folder)
+    shutil.move(tmp_folder, new_dir)
+    # old_dir.rename(new_dir)

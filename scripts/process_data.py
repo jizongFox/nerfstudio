@@ -403,6 +403,10 @@ class UndistortImages:
         if self.export_pcd:
             colmap_utils.colmap_to_sparse_point_cloud(self.output_dir / "sparse" / "points3D.bin",
                                                       output_dir=self.output_dir)
+
+        colmap_utils.move_sparse_folder(self.output_dir.absolute() / "sparse",
+                                        self.output_dir.absolute() / "sparse" / "0")
+
         for summary in summary_log:
             CONSOLE.print(summary, justify="center")
         CONSOLE.rule()
