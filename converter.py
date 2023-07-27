@@ -26,7 +26,7 @@ class ConvertPCD2OpenCV:
         invers_transform = np.linalg.inv(transform @ M)
 
         opencv_points = np.einsum("ij,nj->ni", invers_transform, points_homo)[:, :3]
-        # opencv_points /= scale
+        opencv_points /= scale
         pcd = o3d.geometry.PointCloud()
         pcd.points = o3d.utility.Vector3dVector(opencv_points)
         pcd.colors = o3d.utility.Vector3dVector(colors)
