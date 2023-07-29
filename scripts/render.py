@@ -94,7 +94,6 @@ def _render_trajectory_video(
 
         with progress:
             for camera_idx in progress.track(range(cameras.size), description=""):
-
                 aabb_box = None
                 if crop_data is not None:
                     bounding_box_min = crop_data.center - crop_data.scale / 2.0
@@ -272,7 +271,7 @@ class RenderTrajectory:
 
     def main(self) -> None:
         """Main function."""
-        _, pipeline, _ = eval_setup(
+        _, pipeline, *_ = eval_setup(
             self.load_config,
             eval_num_rays_per_chunk=self.eval_num_rays_per_chunk,
             test_mode="test" if self.traj == "spiral" else "inference",
