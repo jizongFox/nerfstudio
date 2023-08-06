@@ -37,8 +37,11 @@ def get_interpolated_camera_path(cameras: Cameras, steps: int) -> Cameras:
     Returns:
         A new set of cameras along a path.
     """
+    if steps == 0:
+        return cameras
+
     Ks = cameras.get_intrinsics_matrices().cpu().numpy()
-    poses = cameras.camera_to_worlds().cpu().numpy()
+    poses = cameras.camera_to_worlds.cpu().numpy()
     poses, Ks = get_interpolated_poses_many(poses, Ks, steps_per_transition=steps)
 
     cameras = Cameras(fx=Ks[:, 0, 0], fy=Ks[:, 1, 1], cx=Ks[0, 0, 2], cy=Ks[0, 1, 2], camera_to_worlds=poses)
@@ -174,3 +177,18 @@ def get_path_from_json(camera_path: Dict[str, Any]) -> Cameras:
         camera_type=camera_type,
         times=times,
     )
+
+
+def merge_cameras(*cameras: Cameras, camera_type) -> Cameras:
+    new_cameras = Cameras(
+        camera_to_worlds=torch.stack([x.camera_to_worlds for x in cameras], dim=0),
+        fx=torch.stack([x.fx for x in cameras], dim=0),
+        fy=torch.stack([x.fy for x in cameras], dim=0),
+        width=torch.stack([x.width for x in cameras], dim=0),
+        height=torch.stack([x.height for x in cameras], dim=0),
+        distortion_params=None,
+        camera_type=camera_type,
+        cx=torch.stack([x.cx for x in cameras], dim=0),
+        cy=torch.stack([x.cy for x in cameras], dim=0),
+    )
+    return new_cameras

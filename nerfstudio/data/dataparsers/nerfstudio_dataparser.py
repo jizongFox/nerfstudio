@@ -36,6 +36,7 @@ from nerfstudio.data.dataparsers.base_dataparser import (
 )
 from nerfstudio.data.scene_box import SceneBox
 from nerfstudio.utils.io import load_from_json
+from nerfstudio.utils.render_utils import ns_dataparser_indicator
 from .nerfstudio_dataparser_normalization import NerfStudioDataParserNormalizationConfig
 
 CONSOLE = Console(width=120)
@@ -69,7 +70,8 @@ class NerfstudioDataParserConfig(DataParserConfig):
     use_pcd_alignment: bool = False
     """Whether to use pcd alignment to align the point clouds. If True, the point cloud would be used."""
     pcd_config: NerfStudioDataParserNormalizationConfig = field(
-        default_factory=lambda: NerfStudioDataParserNormalizationConfig)
+        default_factory=lambda: NerfStudioDataParserNormalizationConfig
+    )
 
     def __post_init__(self):
         if self.use_pcd_alignment:
@@ -95,6 +97,8 @@ class Nerfstudio(DataParser):
         else:
             meta = load_from_json(self.config.data / "transforms.json")
             data_dir = self.config.data
+
+        meta["frames"] = sorted(meta["frames"], key=lambda x: x["file_path"])
 
         image_filenames = []
         mask_filenames = []
@@ -221,8 +225,10 @@ class Nerfstudio(DataParser):
             assert len(i_eval) == num_eval_images
             if split == "train":
                 indices = i_train
+                ns_dataparser_indicator.set_train_indices(indices)
             elif split in ["val", "test"]:
                 indices = i_eval
+                ns_dataparser_indicator.set_eval_indices(indices)
             else:
                 raise ValueError(f"Unknown dataparser split {split}")
 
@@ -345,13 +351,13 @@ class Nerfstudio(DataParser):
                 max_res = max(h, w)
                 df = 0
                 while True:
-                    if (max_res / 2 ** df) < MAX_AUTO_RESOLUTION:
+                    if (max_res / 2**df) < MAX_AUTO_RESOLUTION:
                         break
                     if not (data_dir / f"{downsample_folder_prefix}{2 ** (df + 1)}" / filepath.name).exists():
                         break
                     df += 1
 
-                self.downscale_factor = 2 ** df
+                self.downscale_factor = 2**df
                 CONSOLE.log(f"Auto image downscale factor of {self.downscale_factor}")
             else:
                 self.downscale_factor = self.config.downscale_factor
