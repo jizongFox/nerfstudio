@@ -21,6 +21,7 @@ from typing import Dict, Optional, Tuple
 
 import numpy as np
 import torch
+from loguru import logger
 from torch import nn
 from torch.nn.parameter import Parameter
 from torchtyping import TensorType
@@ -112,6 +113,7 @@ class TCNNNerfactoField(Field):
         use_pred_normals: bool = False,
         use_average_appearance_embedding: bool = False,
         spatial_distortion: Optional[SpatialDistortion] = None,
+        disable_appearance_embedding: bool = False,
     ) -> None:
         super().__init__()
 
@@ -126,6 +128,9 @@ class TCNNNerfactoField(Field):
         self.use_transient_embedding = use_transient_embedding
         self.use_semantics = use_semantics
         self.use_pred_normals = use_pred_normals
+        self.disable_appearance_embedding = disable_appearance_embedding
+        if self.disable_appearance_embedding:
+            logger.warning("Disable Appearance embedding")
 
         base_res = 16
         features_per_level = 2
@@ -273,6 +278,8 @@ class TCNNNerfactoField(Field):
                 embedded_appearance = torch.zeros(
                     (*directions.shape[:-1], self.appearance_embedding_dim), device=directions.device
                 )
+        if self.disable_appearance_embedding:
+            embedded_appearance = torch.zeros_like(embedded_appearance).detach()
 
         # transients
         if self.use_transient_embedding and self.training:

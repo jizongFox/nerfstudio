@@ -124,6 +124,8 @@ class NerfactoModelConfig(ModelConfig):
     """Whether to predict normals or not."""
     disable_scene_contraction: bool = False
     """Whether to disable scene contraction or not."""
+    disable_appearance_embedding: bool = False
+    """Whether to disable appearance emabedding or not. For testing """
 
 
 class NerfactoModel(Model):
@@ -158,6 +160,7 @@ class NerfactoModel(Model):
             num_images=self.num_train_data,
             use_pred_normals=self.config.predict_normals,
             use_average_appearance_embedding=self.config.use_average_appearance_embedding,
+            disable_appearance_embedding=self.config.disable_appearance_embedding
         )
 
         self.density_fns = []
